@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JSON Log Parser</title>
+
+  <!-- Favicon - Material Icon Format Paint -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4h-3z'/></svg>" />
+
+  <!-- Google Fonts - Montserrat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- CodeMirror 5 (stable, semplice da integrare via CDN) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/neo.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+
+  <style>
+    /* Container positioning */
+    #editorWrapper { position: relative; }
+    
+    /* Error state for editor */
+    .editor-error .CodeMirror {
+      background-color: rgba(255, 77, 77, 0.08) !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-6" style="font-family: 'Montserrat', sans-serif;">
+  <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl p-6">
+    <h1 class="text-2xl font-bold mb-4 text-center">JSON Log Parser</h1>
+
+    <div class="flex items-center mb-4 border-b">
+      <button id="inputTab" class="tab-button text-blue-600 border-b-2 border-blue-600 px-4 py-2 font-bold">Input</button>
+      <button id="outputTab" class="tab-button px-4 py-2 font-bold">Output</button>
+    </div>
+
+    <!-- Input area (CodeMirror) -->
+    <div id="inputArea" class="relative">
+      <div id="editorWrapper" class="border rounded-lg overflow-hidden">
+        <!-- CodeMirror will be attached here -->
+        <textarea id="jsonInput" placeholder="Paste your JSON log line here..."></textarea>
+      </div>
+
+      <div class="flex justify-between mt-3">
+        <div>
+          <button id="parseButton" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Parse JSON</button>
+          <button id="clearButton" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 ml-2">Clear Input</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output area (CodeMirror) -->
+    <div id="outputArea" class="hidden">
+      <!-- Metadata Section -->
+      <div id="metadataSection" class="bg-gray-50 border rounded-lg p-4 mb-3 text-sm hidden">
+        <div class="flex items-center gap-8">
+          <div class="flex-1">
+            <span class="font-bold text-gray-700">Titolo:</span>
+            <span id="metaTitle" class="ml-2 text-gray-900"></span>
+          </div>
+          <div class="flex-shrink-0">
+            <span class="font-bold text-gray-700">Timestamp:</span>
+            <span id="metaTimestamp" class="ml-2 text-gray-900"></span>
+          </div>
+          <div class="flex-shrink-0">
+            <span class="font-bold text-gray-700">Pod Name:</span>
+            <span id="metaPodName" class="ml-2 text-gray-900"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="outputEditorWrapper" class="border rounded-lg overflow-hidden">
+        <!-- Output CodeMirror will be attached here -->
+        <textarea id="jsonOutput"></textarea>
+      </div>
+
+      <div class="flex justify-between mt-3">
+        <div>
+          <button id="copyButton" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Copy JSON</button>
+          <button id="clearOutputButton" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 ml-2">Clear Output</button>
+        </div>
+      </div>
+    </div>
+
+    <p id="errorMsg" class="text-red-600 mt-3 font-semibold"></p>
+  </div>
+
+  <script>
+    // Elements
+    const inputTab = document.getElementById('inputTab');
+    const outputTab = document.getElementById('outputTab');
+    const inputArea = document.getElementById('inputArea');
+    const outputArea = document.getElementById('outputArea');
+    const parseButton = document.getElementById('parseButton');
+    const clearButton = document.getElementById('clearButton');
+    const copyButton = document.getElementById('copyButton');
+    const clearOutputButton = document.getElementById('clearOutputButton');
+    const errorMsg = document.getElementById('errorMsg');
+
+    // Init Input CodeMirror
+    const textarea = document.getElementById('jsonInput');
+    const cm = CodeMirror.fromTextArea(textarea, {
+      mode: { name: "javascript", json: true },
+      lineNumbers: true,
+      theme: "neo",
+      lineWrapping: true,
+      autofocus: true,
+      indentUnit: 2,
+      tabSize: 2
+    });
+    cm.setSize(null, "500px");
+
+    // Init Output CodeMirror (read-only)
+    const outputTextarea = document.getElementById('jsonOutput');
+    const outputCm = CodeMirror.fromTextArea(outputTextarea, {
+      mode: { name: "javascript", json: true },
+      lineNumbers: true,
+      theme: "neo",
+      lineWrapping: true,
+      readOnly: true,
+      indentUnit: 2,
+      tabSize: 2
+    });
+    outputCm.setSize(null, "500px");
+
+    // Tab handlers
+    inputTab.addEventListener('click', () => {
+      inputArea.classList.remove('hidden');
+      outputArea.classList.add('hidden');
+      inputTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+      outputTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+      cm.refresh();
+    });
+
+    outputTab.addEventListener('click', () => {
+      inputArea.classList.add('hidden');
+      outputArea.classList.remove('hidden');
+      outputTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+      inputTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+      outputCm.refresh();
+    });
+
+    // Clear
+    clearButton.addEventListener('click', () => {
+      cm.setValue('');
+      outputCm.setValue('');
+      errorMsg.textContent = '';
+      document.getElementById('metadataSection').classList.add('hidden');
+      document.getElementById('editorWrapper').classList.remove('editor-error');
+      adjustOutputHeight();
+    });
+
+    // Clear Output - pulisce tutto e torna al tab di input
+    clearOutputButton.addEventListener('click', () => {
+      cm.setValue('');
+      outputCm.setValue('');
+      errorMsg.textContent = '';
+      document.getElementById('metadataSection').classList.add('hidden');
+      document.getElementById('editorWrapper').classList.remove('editor-error');
+      adjustOutputHeight();
+      inputTab.click();
+    });
+
+    // Function to adjust output height based on metadata visibility
+    function adjustOutputHeight() {
+      const metadataSection = document.getElementById('metadataSection');
+      const isMetadataVisible = !metadataSection.classList.contains('hidden');
+      
+      if (isMetadataVisible) {
+        // Reduce height when metadata is visible to keep button aligned
+        // Metadata section is approximately 68px (padding + content)
+        outputCm.setSize(null, "432px");
+      } else {
+        // Full height when no metadata
+        outputCm.setSize(null, "500px");
+      }
+      outputCm.refresh();
+    }
+
+    // Extract metadata from log
+    function extractMetadata(text) {
+      const metadata = {
+        title: '',
+        timestamp: '',
+        podName: ''
+      };
+
+      try {
+        // Try to parse as JSON first
+        const outer = JSON.parse(text);
+        
+        // Extract timestamp
+        if (outer['@timestamp']) {
+          metadata.timestamp = outer['@timestamp'];
+        }
+        
+        // Extract pod name
+        if (outer.name) {
+          metadata.podName = outer.name;
+        }
+        
+        // Extract title from message (text before array/object)
+        if (outer.message) {
+          const msg = outer.message;
+          // Find the start of array or object
+          const arrayStart = msg.indexOf('[');
+          const objStart = msg.indexOf('{');
+          
+          let jsonStart = -1;
+          if (arrayStart !== -1 && objStart !== -1) {
+            jsonStart = Math.min(arrayStart, objStart);
+          } else if (arrayStart !== -1) {
+            jsonStart = arrayStart;
+          } else if (objStart !== -1) {
+            jsonStart = objStart;
+          }
+          
+          if (jsonStart > 0) {
+            // Extract everything before the JSON as title
+            metadata.title = msg.substring(0, jsonStart).trim();
+            // Remove trailing dashes or special characters
+            metadata.title = metadata.title.replace(/[-\s]+$/, '');
+          }
+        }
+      } catch (e) {
+        // If not valid JSON, just ignore - metadata stays empty
+      }
+      
+      return metadata;
+    }
+
+    // Display metadata in the UI
+    function displayMetadata(metadata) {
+      const metadataSection = document.getElementById('metadataSection');
+      const metaTitle = document.getElementById('metaTitle');
+      const metaTimestamp = document.getElementById('metaTimestamp');
+      const metaPodName = document.getElementById('metaPodName');
+      
+      // Only show metadata section if at least one field has a value
+      const hasMetadata = metadata.title || metadata.timestamp || metadata.podName;
+      
+      if (hasMetadata) {
+        metaTitle.textContent = metadata.title || '-';
+        
+        // Format timestamp if present
+        let formattedTimestamp = '-';
+        if (metadata.timestamp) {
+          try {
+            const date = new Date(metadata.timestamp);
+            // Format: DD/MM/YYYY HH:MM:SS
+            formattedTimestamp = date.toLocaleString('it-IT', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            });
+          } catch (e) {
+            formattedTimestamp = metadata.timestamp;
+          }
+        }
+        metaTimestamp.textContent = formattedTimestamp;
+        
+        metaPodName.textContent = metadata.podName || '-';
+        metadataSection.classList.remove('hidden');
+      } else {
+        metadataSection.classList.add('hidden');
+      }
+      
+      // Adjust output height after changing metadata visibility
+      adjustOutputHeight();
+    }
+
+    // Parse
+    parseButton.addEventListener('click', () => {
+      document.getElementById('editorWrapper').classList.remove('editor-error');
+      errorMsg.textContent = '';
+      let text = cm.getValue().trim();
+      let extractedJson = null;
+
+      // Extract and display metadata
+      const metadata = extractMetadata(text);
+      displayMetadata(metadata);
+
+      // Try parse outer object first
+      try {
+        const outer = JSON.parse(text);
+        if (outer && outer.message) {
+          const msg = outer.message;
+          extractedJson = extractJsonFromString(msg);
+        }
+      } catch (e) {
+        // ignore — maybe not full outer JSON
+      }
+
+      // If not found in outer.message, try to extract directly from text
+      if (!extractedJson) {
+        extractedJson = extractJsonFromString(text);
+      }
+
+      if (!extractedJson) {
+        errorMsg.textContent = 'No valid JSON array or object found in input';
+        document.getElementById('editorWrapper').classList.add('editor-error');
+        return;
+      }
+
+      // Now unescape and parse
+      const unescaped = unescapeJson(extractedJson);
+
+      try {
+        const parsed = JSON.parse(unescaped);
+        
+        // Deep parse: recursively parse any stringified JSON fields
+        const deepParsed = deepParseJson(parsed);
+        
+        outputCm.setValue(JSON.stringify(deepParsed, null, 2));
+        errorMsg.textContent = '';
+        outputTab.click();
+      } catch (e) {
+        // Show error message and highlight editor in red
+        errorMsg.textContent = 'Invalid JSON: ' + e.message;
+        document.getElementById('editorWrapper').classList.add('editor-error');
+      }
+    });
+
+    // Extract JSON (array or object) from a string
+    function extractJsonFromString(str) {
+      // Try to find array first
+      let match = str.match(/\[.*\]$/s);
+      if (match) {
+        return match[0];
+      }
+      
+      // Try to find object
+      match = str.match(/\{.*\}$/s);
+      if (match) {
+        return match[0];
+      }
+
+      // Alternative: look for first [ or { and try to extract from there
+      const arrayStart = str.indexOf('[');
+      const objStart = str.indexOf('{');
+      
+      if (arrayStart !== -1 && (objStart === -1 || arrayStart < objStart)) {
+        return str.substring(arrayStart);
+      }
+      
+      if (objStart !== -1) {
+        return str.substring(objStart);
+      }
+
+      return null;
+    }
+
+    // Recursively parse any stringified JSON fields
+    function deepParseJson(obj) {
+      if (obj === null || obj === undefined) {
+        return obj;
+      }
+      
+      // Handle arrays
+      if (Array.isArray(obj)) {
+        return obj.map(item => deepParseJson(item));
+      }
+      
+      // Handle objects
+      if (typeof obj === 'object') {
+        const result = {};
+        for (const key in obj) {
+          if (obj.hasOwnProperty(key)) {
+            result[key] = deepParseJson(obj[key]);
+          }
+        }
+        return result;
+      }
+      
+      // Handle strings that might be JSON
+      if (typeof obj === 'string') {
+        // Check if it looks like JSON (starts with { or [)
+        const trimmed = obj.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            // Try to parse it
+            const parsed = JSON.parse(trimmed);
+            // Recursively parse the result
+            return deepParseJson(parsed);
+          } catch (e) {
+            // If it fails, just return the original string
+            return obj;
+          }
+        }
+      }
+      
+      // Return primitives as-is
+      return obj;
+    }
+
+    // Unescape JSON with multiple levels of escaping
+    function unescapeJson(str) {
+      let result = str;
+      let iterations = 0;
+      const maxIterations = 10;
+
+      // Try parsing at each unescape level
+      while (iterations < maxIterations) {
+        try {
+          // Try to parse the current result
+          JSON.parse(result);
+          // If successful, return it
+          return result;
+        } catch (e) {
+          // If parsing failed, try one more level of unescaping
+          const newResult = unescapeOneLevel(result);
+          
+          // If no change, stop trying
+          if (newResult === result) {
+            break;
+          }
+          
+          result = newResult;
+          iterations++;
+        }
+      }
+
+      // Return the last attempt even if it doesn't parse
+      return result;
+    }
+
+    // Unescape one level of JSON escaping
+    function unescapeOneLevel(str) {
+      // First handle escaped backslashes, then escaped quotes
+      // This order is important!
+      return str
+        .replace(/\\\\/g, '\u0000')  // Temporarily replace \\ with null char
+        .replace(/\\"/g, '"')         // Replace \" with "
+        .replace(/\u0000/g, '\\');    // Restore single backslashes
+    }
+
+    // Copy output
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(outputCm.getValue());
+        copyButton.textContent = "Copied!";
+        copyButton.classList.add('bg-green-800');
+        setTimeout(() => {
+          copyButton.textContent = "Copy JSON";
+          copyButton.classList.remove('bg-green-800');
+        }, 1500);
+      } catch {
+        alert("Failed to copy to clipboard");
+      }
+    });
+
+    // Remove error state when user types
+    cm.on('change', () => {
+      document.getElementById('editorWrapper').classList.remove('editor-error');
+      errorMsg.textContent = '';
+    });
+
+    // ensure CodeMirror refresh on window resize (keeps coordinates accurate)
+    window.addEventListener('resize', () => {
+      cm.refresh();
+      outputCm.refresh();
+    });
+  </script>
+</body>
+</html>
