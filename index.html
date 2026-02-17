@@ -4,473 +4,504 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>JSON Log Parser</title>
-
-  <!-- Favicon - Material Icon Format Paint -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4h-3z'/></svg>" />
-
-  <!-- Google Fonts - Montserrat -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- CodeMirror 5 (stable, semplice da integrare via CDN) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/neo.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/brace-fold.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/search/searchcursor.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/scroll/annotatescrollbar.min.js"></script>
 
   <style>
-    /* Container positioning */
-    #editorWrapper { position: relative; }
-    
-    /* Error state for editor */
-    .editor-error .CodeMirror {
-      background-color: rgba(255, 77, 77, 0.08) !important;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Montserrat',sans-serif;background:#eef1f5;min-height:100vh;padding:16px;display:flex;justify-content:center;color:#1f2937}
+
+    .app-shell{transition:width .3s ease;flex-shrink:0}
+    .app-shell[data-count="1"]{width:960px}
+    .app-shell[data-count="2"]{width:min(1500px,96vw)}
+    .app-shell[data-count="3"]{width:min(1800px,98vw)}
+
+    /* Blue header */
+    .app-header{
+      background:linear-gradient(135deg,#2563eb,#4f46e5);
+      padding:10px 20px;border-radius:12px 12px 0 0;
+      display:flex;align-items:center;justify-content:space-between;
+    }
+    .app-header-left{display:flex;align-items:center;gap:10px}
+    .app-header h1{color:#fff;font-size:17px;font-weight:700}
+    .app-header svg{color:#fff;flex-shrink:0}
+    .add-tab-header{
+      display:inline-flex;align-items:center;gap:5px;
+      padding:5px 14px;font-size:12px;font-weight:600;
+      border-radius:6px;cursor:pointer;
+      border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);
+      color:#fff;transition:all .15s;font-family:inherit;
+    }
+    .add-tab-header:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5)}
+    .add-tab-header:disabled{opacity:.35;cursor:not-allowed}
+    .add-tab-header:disabled:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35)}
+
+    /* Panels */
+    .panels-row{
+      display:flex;gap:0;background:#fff;
+      border-radius:0 0 12px 12px;box-shadow:0 4px 24px rgba(0,0,0,.08);
+      overflow:hidden;
+    }
+    .panel{
+      flex:1 1 0;min-width:0;
+      display:flex;flex-direction:column;
+      border-right:1px solid #e5e7eb;
+      height:800px;overflow:hidden;
+    }
+    .panel:last-child{border-right:none}
+
+    /* Panel header — buttons LEFT, label+view RIGHT */
+    .panel-head{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:6px 10px;background:#f9fafb;border-bottom:1px solid #e5e7eb;
+      min-height:40px;flex-shrink:0;gap:8px;
+    }
+    .head-left{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+    .head-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+    .panel-label{
+      font-size:11px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.5px;color:#9ca3af;display:flex;align-items:center;gap:5px;
+      white-space:nowrap;max-width:300px; 
+    }
+    .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .dot-blue{background:#3b82f6}.dot-green{background:#10b981}
+
+    .close-panel{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:18px;height:18px;border-radius:50%;font-size:13px;line-height:1;
+      cursor:pointer;border:none;background:none;color:#c9cdd3;padding:0;
+      transition:all .15s;
+    }
+    .close-panel:hover{background:#fee2e2;color:#dc2626}
+
+    .view-pills{display:flex;gap:2px}
+    .vpill{
+      padding:3px 10px;font-size:11px;font-weight:600;border-radius:5px;
+      cursor:pointer;border:1px solid transparent;background:transparent;
+      color:#9ca3af;transition:all .12s;font-family:inherit;
+    }
+    .vpill.active{background:#2563eb;color:#fff;border-color:#2563eb}
+    .vpill:not(.active):hover{background:#f3f4f6;color:#4b5563}
+
+    .search-bar{
+      display:flex;align-items:center;gap:6px;
+      padding:5px 10px;background:#fefce8;border-bottom:1px solid #fde68a;flex-shrink:0;
+    }
+    .search-bar input{
+      flex:1;padding:4px 8px;font-size:12px;border:1px solid #e5e7eb;
+      border-radius:5px;outline:none;font-family:'JetBrains Mono',monospace;background:#fff;min-width:0;
+    }
+    .search-bar input:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+    .search-info{font-size:11px;color:#92400e;font-weight:600;min-width:55px;text-align:center;white-space:nowrap}
+
+    .meta-bar{
+      display:none !important;align-items:center;gap:14px;flex-wrap:wrap;
+      padding:5px 10px;background:linear-gradient(90deg,#f0fdf4,#f0f9ff);
+      border-bottom:1px solid #e5e7eb;font-size:11px;flex-shrink:0;
+    }
+    .meta-item{display:flex;align-items:center;gap:4px}
+    .meta-lbl{font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#9ca3af;font-size:10px}
+    .meta-val{color:#1f2937;font-weight:500}
+
+    .error-msg{
+      color:#dc2626;font-size:11px;font-weight:600;
+      padding:4px 10px;background:#fef2f2;border-bottom:1px solid #fecaca;flex-shrink:0;
+    }
+    .editor-error .CodeMirror{background-color:rgba(255,77,77,.05)!important}
+
+    .panel-body{flex:1;overflow:hidden;position:relative;min-height:0}
+
+    /* Buttons */
+    .btn{
+      display:inline-flex;align-items:center;gap:4px;
+      padding:4px 11px;font-size:11px;font-weight:600;border-radius:5px;
+      cursor:pointer;border:none;transition:all .15s;font-family:inherit;white-space:nowrap;
+    }
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn-success{background:#059669;color:#fff}
+    .btn-success:hover{background:#047857}
+    .btn-ghost{background:#f3f4f6;color:#4b5563}
+    .btn-ghost:hover{background:#e5e7eb}
+    .btn-icon{
+      padding:4px 7px;background:#fff;color:#6b7280;
+      border:1px solid #e5e7eb;border-radius:5px;cursor:pointer;
+      display:inline-flex;align-items:center;justify-content:center;
+      transition:all .12s;font-family:inherit;font-size:11px;font-weight:600;
+    }
+    .btn-icon:hover{background:#f3f4f6;color:#4b5563;border-color:#d1d5db}
+    .btn-icon.active-toggle{background:#2563eb;color:#fff;border-color:#2563eb}
+
+    /* CodeMirror */
+    .CodeMirror{
+      font-family:'JetBrains Mono',monospace!important;
+      font-size:13px;line-height:1.6;background:#fafbfc!important;height:100%!important;
+    }
+    .CodeMirror-gutters{background:#f0f2f5!important;border-right:1px solid #e2e6ea!important}
+    .CodeMirror-linenumber{color:#9ca3af!important;font-size:11px}
+    .cm-s-neo span.cm-string.cm-property{color:#7c3aed!important;font-weight:700}
+    .cm-s-neo span.cm-string:not(.cm-property){color:#0d9488!important;font-weight:400}
+    .cm-s-neo span.cm-number{color:#d97706!important;font-weight:500}
+    .cm-s-neo span.cm-keyword{color:#dc2626!important;font-weight:600}
+    .cm-s-neo span.cm-atom{color:#2563eb!important;font-weight:600}
+    .cm-searching{background:rgba(255,213,79,.45)!important;border-bottom:2px solid #f59e0b}
+
+    .CodeMirror-foldmarker{
+      color:#6366f1!important;text-shadow:none!important;
+      font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;
+      background:#eef2ff;border:1px solid #c7d2fe;border-radius:3px;padding:0 4px;margin:0 2px;
+    }
+    .CodeMirror-foldgutter{width:16px!important}
+    .CodeMirror-foldgutter-open,.CodeMirror-foldgutter-folded{
+      cursor:pointer;color:#9ca3af!important;font-size:14px;line-height:1.6;transition:color .15s;
+    }
+    .CodeMirror-foldgutter-open::after{content:"▾"}
+    .CodeMirror-foldgutter-folded::after{content:"▸"}
+    .CodeMirror-foldgutter-open:hover,.CodeMirror-foldgutter-folded:hover{color:#6366f1!important}
+
+    /* Schema Tree */
+    .schema-tree{
+      font-family:'JetBrains Mono',monospace;
+      font-size:13px;line-height:1.55;padding:12px;
+      overflow:auto;background:#fafbfc;height:100%;
+    }
+    .st-children{margin-left:12px;padding-left:16px;border-left:2px solid #e5e7eb;position:relative}
+    .st-node{position:relative}
+    .st-children>.st-node::before{content:'';position:absolute;left:-16px;top:14px;width:12px;border-top:2px solid #e5e7eb}
+    .st-row{display:flex;align-items:center;padding:3px 6px;border-radius:5px;min-height:28px;gap:5px;cursor:default}
+    .st-row:hover{background:#f3f4f6}
+    .st-row.st-highlight{background:rgba(255,213,79,.3);outline:2px solid #fbbf24;outline-offset:-1px}
+    .st-row.st-current{background:rgba(251,191,36,.45);outline:2px solid #d97706;outline-offset:-1px}
+    .st-toggle{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:20px;height:20px;cursor:pointer;color:#6b7280;
+      border-radius:4px;transition:all .12s;user-select:none;flex-shrink:0;
+      background:#f3f4f6;border:1px solid #e5e7eb;
+    }
+    .st-toggle:hover{background:#dbeafe;color:#2563eb;border-color:#93c5fd}
+    .st-toggle.collapsed svg{transform:rotate(-90deg)}
+    .st-toggle svg{transition:transform .15s}
+    .st-spacer{width:20px;flex-shrink:0}
+    .st-key{color:#7c3aed;font-weight:600}
+    .st-colon{color:#cbd5e1;margin:0 2px}
+    .st-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.3px;text-transform:uppercase}
+    .st-b-obj{background:#eef2ff;color:#6366f1;border:1px solid #c7d2fe}
+    .st-b-arr{background:#fef3c7;color:#b45309;border:1px solid #fcd34d}
+    .st-b-str{background:#ccfbf1;color:#0d9488;border:1px solid #99f6e4}
+    .st-b-num{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
+    .st-b-bool{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+    .st-b-null{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+    .st-count{color:#9ca3af;font-size:11px}
+    .st-elem-tag{font-size:10px;font-style:italic;color:#78716c;background:#f5f5f4;border:1px dashed #d6d3d1;border-radius:3px;padding:1px 6px}
+
+    .hidden{display:none!important}
+
+    @media(max-width:780px){
+      .app-shell,.app-shell[data-count="1"],.app-shell[data-count="2"],.app-shell[data-count="3"]{width:100%!important;max-width:none!important}
+      .panels-row{flex-direction:column}
+      .panel{min-width:0;height:600px;border-right:none;border-bottom:1px solid #e5e7eb}
+      .panel:last-child{border-bottom:none}
     }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-6" style="font-family: 'Montserrat', sans-serif;">
-  <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-xl p-6">
-    <h1 class="text-2xl font-bold mb-4 text-center">JSON Log Parser</h1>
-
-    <div class="flex items-center mb-4 border-b">
-      <button id="inputTab" class="tab-button text-blue-600 border-b-2 border-blue-600 px-4 py-2 font-bold">Input</button>
-      <button id="outputTab" class="tab-button px-4 py-2 font-bold">Output</button>
+<body>
+<div class="app-shell" id="appShell" data-count="1">
+  <!-- Blue header -->
+  <div class="app-header">
+    <div class="app-header-left">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <h1>JSON Log Parser</h1>
     </div>
-
-    <!-- Input area (CodeMirror) -->
-    <div id="inputArea" class="relative">
-      <div id="editorWrapper" class="border rounded-lg overflow-hidden">
-        <!-- CodeMirror will be attached here -->
-        <textarea id="jsonInput" placeholder="Paste your JSON log line here..."></textarea>
-      </div>
-
-      <div class="flex justify-between mt-3">
-        <div>
-          <button id="parseButton" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Parse JSON</button>
-          <button id="clearButton" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 ml-2">Clear Input</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Output area (CodeMirror) -->
-    <div id="outputArea" class="hidden">
-      <!-- Metadata Section -->
-      <div id="metadataSection" class="bg-gray-50 border rounded-lg p-4 mb-3 text-sm hidden">
-        <div class="flex items-center gap-8">
-          <div class="flex-1">
-            <span class="font-bold text-gray-700">Titolo:</span>
-            <span id="metaTitle" class="ml-2 text-gray-900"></span>
-          </div>
-          <div class="flex-shrink-0">
-            <span class="font-bold text-gray-700">Timestamp:</span>
-            <span id="metaTimestamp" class="ml-2 text-gray-900"></span>
-          </div>
-          <div class="flex-shrink-0">
-            <span class="font-bold text-gray-700">Pod Name:</span>
-            <span id="metaPodName" class="ml-2 text-gray-900"></span>
-          </div>
-        </div>
-      </div>
-
-      <div id="outputEditorWrapper" class="border rounded-lg overflow-hidden">
-        <!-- Output CodeMirror will be attached here -->
-        <textarea id="jsonOutput"></textarea>
-      </div>
-
-      <div class="flex justify-between mt-3">
-        <div>
-          <button id="copyButton" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Copy JSON</button>
-          <button id="clearOutputButton" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 ml-2">Clear Output</button>
-        </div>
-      </div>
-    </div>
-
-    <p id="errorMsg" class="text-red-600 mt-3 font-semibold"></p>
+    <button class="add-tab-header" id="addTabBtn">+ New tab</button>
   </div>
+  <div class="panels-row" id="panelsRow"></div>
+</div>
 
-  <script>
-    // Elements
-    const inputTab = document.getElementById('inputTab');
-    const outputTab = document.getElementById('outputTab');
-    const inputArea = document.getElementById('inputArea');
-    const outputArea = document.getElementById('outputArea');
-    const parseButton = document.getElementById('parseButton');
-    const clearButton = document.getElementById('clearButton');
-    const copyButton = document.getElementById('copyButton');
-    const clearOutputButton = document.getElementById('clearOutputButton');
-    const errorMsg = document.getElementById('errorMsg');
+<script>
+const MAX=3;let sessions=[],counter=0;
 
-    // Init Input CodeMirror
-    const textarea = document.getElementById('jsonInput');
-    const cm = CodeMirror.fromTextArea(textarea, {
-      mode: { name: "javascript", json: true },
-      lineNumbers: true,
-      theme: "neo",
-      lineWrapping: true,
-      autofocus: true,
-      indentUnit: 2,
-      tabSize: 2
-    });
-    cm.setSize(null, "500px");
+function addSession(){
+  if(sessions.length>=MAX)return;
+  let num = 1;
+  while (sessions.some(s => s.name === 'Tab ' + num || s.id === 'p' + num)) num++;
+  counter = num;
+  const s={id:'p'+counter,name:'Tab '+counter,inputCm:null,outputCm:null,
+    view:'input',outMode:'code',parsed:null,
+    cmMarks:[],cmMatches:[],cmIdx:-1,
+    treeMatchRows:[],treeIdx:-1,searchOpen:false};
+  sessions.push(s);
+  buildPanel(s);updateLayout();
+}
+function removeSession(id){
+  if(sessions.length<=1)return;
+  const i=sessions.findIndex(s=>s.id===id);if(i===-1)return;
+  document.getElementById(id)?.remove();sessions.splice(i,1);
+  updateLayout();
+}
+function updateLayout(){
+  document.getElementById('appShell').setAttribute('data-count',sessions.length);
+  document.getElementById('addTabBtn').disabled=sessions.length>=MAX;
+  // Show/hide close buttons (only if >1 panel)
+  sessions.forEach(s=>{
+    const el=document.getElementById(s.id);
+    const cb=el?.querySelector('[data-r="closePanel"]');
+    if(cb) cb.classList.toggle('hidden',sessions.length<=1);
+  });
+  setTimeout(()=>sessions.forEach(s=>{s.inputCm?.refresh();s.outputCm?.refresh()}),50);
+}
 
-    // Init Output CodeMirror (read-only)
-    const outputTextarea = document.getElementById('jsonOutput');
-    const outputCm = CodeMirror.fromTextArea(outputTextarea, {
-      mode: { name: "javascript", json: true },
-      lineNumbers: true,
-      theme: "neo",
-      lineWrapping: true,
-      readOnly: true,
-      indentUnit: 2,
-      tabSize: 2
-    });
-    outputCm.setSize(null, "500px");
+document.getElementById('addTabBtn').addEventListener('click',addSession);
 
-    // Tab handlers
-    inputTab.addEventListener('click', () => {
-      inputArea.classList.remove('hidden');
-      outputArea.classList.add('hidden');
-      inputTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
-      outputTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
-      cm.refresh();
-    });
+function buildPanel(s){
+  const row=document.getElementById('panelsRow');
+  const p=document.createElement('div');p.className='panel';p.id=s.id;
+  p.innerHTML=`<div class="panel-head">
+      <div class="head-left">
+        <!-- Input actions -->
+        <div data-r="inActions" style="display:flex;gap:4px;align-items:center">
+          <button class="btn btn-primary" data-r="parseBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Parse
+          </button>
+          <button class="btn btn-ghost" data-r="clrIn">Clear</button>
+        </div>
+        <!-- Output actions -->
+        <div data-r="outActions" class="hidden" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-success" data-r="copyBtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
+          </button>
+          <button class="btn btn-ghost" data-r="backBtn">← Input</button>
+          <button class="btn btn-ghost" data-r="clrAll">Clear</button>
+          <div style="width:1px;height:18px;background:#e5e7eb;margin:0 2px"></div>
+          <div class="view-pills">
+            <button class="vpill active" data-r="vCode">{ } Code</button>
+            <button class="vpill" data-r="vTree">⧉ Schema</button>
+          </div>
+          <button class="btn-icon" data-r="searchToggle" title="Cerca (Ctrl+F)">🔍</button>
+        </div>
+      </div>
+      <div class="head-right">
+        <div class="panel-label"><span class="dot dot-blue" data-r="dot"></span><span data-r="lbl">Tab ${counter}</span></div>
+        <button class="close-panel hidden" data-r="closePanel" title="Chiudi tab">&times;</button>
+      </div>
+    </div>
+    <div data-r="searchBar" class="search-bar hidden">
+      <input data-r="searchInput" type="text" placeholder="Cerca nel JSON…" spellcheck="false"/>
+      <span data-r="searchInfo" class="search-info"></span>
+      <button class="btn-icon" data-r="searchPrev" title="Precedente" style="padding:3px 7px">▲</button>
+      <button class="btn-icon" data-r="searchNext" title="Successivo" style="padding:3px 7px">▼</button>
+      <button class="btn-icon" data-r="searchClose" title="Chiudi" style="padding:3px 7px">✕</button>
+    </div>
+    <div data-r="metaBar" class="meta-bar hidden">
+      <div class="meta-item"><span class="meta-lbl">Title</span><span class="meta-val" data-r="mTitle"></span></div>
+      <div class="meta-item"><span class="meta-lbl">Time</span><span class="meta-val" data-r="mTs"></span></div>
+      <div class="meta-item"><span class="meta-lbl">Pod</span><span class="meta-val" data-r="mPod"></span></div>
+    </div>
+    <div data-r="errBox" class="error-msg hidden"></div>
+    <div class="panel-body">
+      <div data-r="inView" style="height:100%"><div data-r="inWrap" style="height:100%"><textarea data-r="inTa"></textarea></div></div>
+      <div data-r="codeView" class="hidden" style="height:100%"><textarea data-r="outTa"></textarea></div>
+      <div data-r="treeView" class="hidden" style="height:100%"><div data-r="stree" class="schema-tree"></div></div>
+    </div>`;
+  row.appendChild(p);
 
-    outputTab.addEventListener('click', () => {
-      inputArea.classList.add('hidden');
-      outputArea.classList.remove('hidden');
-      outputTab.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
-      inputTab.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
-      outputCm.refresh();
-    });
+  const q=r=>p.querySelector(`[data-r="${r}"]`);
+  const cmOpts={mode:{name:"javascript",json:true},lineNumbers:true,theme:"neo",lineWrapping:true,indentUnit:2,tabSize:2,foldGutter:true,gutters:["CodeMirror-linenumbers","CodeMirror-foldgutter"]};
+  s.inputCm=CodeMirror.fromTextArea(q('inTa'),{...cmOpts,autofocus:sessions.length===1});
+  s.inputCm.setSize('100%','100%');
+  s.outputCm=CodeMirror.fromTextArea(q('outTa'),{...cmOpts,readOnly:true});
+  s.outputCm.setSize('100%','100%');
 
-    // Clear
-    clearButton.addEventListener('click', () => {
-      cm.setValue('');
-      outputCm.setValue('');
-      errorMsg.textContent = '';
-      document.getElementById('metadataSection').classList.add('hidden');
-      document.getElementById('editorWrapper').classList.remove('editor-error');
-      adjustOutputHeight();
-    });
+  q('parseBtn').addEventListener('click',()=>parse(s));
+  q('clrIn').addEventListener('click',()=>reset(s));
+  q('backBtn').addEventListener('click',()=>toInput(s));
+  q('clrAll').addEventListener('click',()=>reset(s));
+  q('copyBtn').addEventListener('click',()=>copyOut(s));
+  q('vCode').addEventListener('click',()=>setMode(s,'code'));
+  q('vTree').addEventListener('click',()=>setMode(s,'tree'));
+  q('closePanel').addEventListener('click',()=>removeSession(s.id));
 
-    // Clear Output - pulisce tutto e torna al tab di input
-    clearOutputButton.addEventListener('click', () => {
-      cm.setValue('');
-      outputCm.setValue('');
-      errorMsg.textContent = '';
-      document.getElementById('metadataSection').classList.add('hidden');
-      document.getElementById('editorWrapper').classList.remove('editor-error');
-      adjustOutputHeight();
-      inputTab.click();
-    });
+  q('searchToggle').addEventListener('click',()=>toggleSearch(s));
+  q('searchClose').addEventListener('click',()=>toggleSearch(s,false));
+  q('searchInput').addEventListener('input',()=>doSearch(s));
+  q('searchInput').addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.shiftKey?searchPrev(s):searchNext(s);e.preventDefault()}
+    if(e.key==='Escape')toggleSearch(s,false);
+  });
+  q('searchNext').addEventListener('click',()=>searchNext(s));
+  q('searchPrev').addEventListener('click',()=>searchPrev(s));
 
-    // Function to adjust output height based on metadata visibility
-    function adjustOutputHeight() {
-      const metadataSection = document.getElementById('metadataSection');
-      const isMetadataVisible = !metadataSection.classList.contains('hidden');
-      
-      if (isMetadataVisible) {
-        // Reduce height when metadata is visible to keep button aligned
-        // Metadata section is approximately 68px (padding + content)
-        outputCm.setSize(null, "432px");
-      } else {
-        // Full height when no metadata
-        outputCm.setSize(null, "500px");
-      }
-      outputCm.refresh();
-    }
+  s.outputCm.setOption('extraKeys',{'Ctrl-F':()=>toggleSearch(s,true),'Cmd-F':()=>toggleSearch(s,true)});
+  s.inputCm.on('change',()=>{q('inWrap').classList.remove('editor-error');q('errBox').classList.add('hidden')});
 
-    // Extract metadata from log
-    function extractMetadata(text) {
-      const metadata = {
-        title: '',
-        timestamp: '',
-        podName: ''
-      };
+  setTimeout(()=>{s.inputCm.refresh();s.outputCm.refresh()},60);
+}
 
-      try {
-        // Try to parse as JSON first
-        const outer = JSON.parse(text);
-        
-        // Extract timestamp
-        if (outer['@timestamp']) {
-          metadata.timestamp = outer['@timestamp'];
-        }
-        
-        // Extract pod name
-        if (outer.name) {
-          metadata.podName = outer.name;
-        }
-        
-        // Extract title from message (text before array/object)
-        if (outer.message) {
-          const msg = outer.message;
-          // Find the start of array or object
-          const arrayStart = msg.indexOf('[');
-          const objStart = msg.indexOf('{');
-          
-          let jsonStart = -1;
-          if (arrayStart !== -1 && objStart !== -1) {
-            jsonStart = Math.min(arrayStart, objStart);
-          } else if (arrayStart !== -1) {
-            jsonStart = arrayStart;
-          } else if (objStart !== -1) {
-            jsonStart = objStart;
-          }
-          
-          if (jsonStart > 0) {
-            // Extract everything before the JSON as title
-            metadata.title = msg.substring(0, jsonStart).trim();
-            // Remove trailing dashes or special characters
-            metadata.title = metadata.title.replace(/[-\s]+$/, '');
-          }
-        }
-      } catch (e) {
-        // If not valid JSON, just ignore - metadata stays empty
-      }
-      
-      return metadata;
-    }
+/* ═══ SEARCH ═══ */
+function toggleSearch(s,forceOpen){
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  const open=forceOpen!==undefined?forceOpen:!s.searchOpen;
+  s.searchOpen=open;
+  q('searchBar').classList.toggle('hidden',!open);
+  q('searchToggle').classList.toggle('active-toggle',open);
+  if(open){q('searchInput').focus();doSearch(s)}
+  else{clearAllSearch(s);q('searchInfo').textContent=''}
+  setTimeout(()=>s.outputCm.refresh(),10);
+}
+function clearAllSearch(s){
+  s.cmMarks.forEach(m=>m.clear());s.cmMarks=[];s.cmMatches=[];s.cmIdx=-1;
+  s.treeMatchRows.forEach(r=>r.classList.remove('st-highlight','st-current'));
+  s.treeMatchRows=[];s.treeIdx=-1;
+}
+function doSearch(s){
+  clearAllSearch(s);
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  const term=q('searchInput').value.trim();
+  if(!term){q('searchInfo').textContent='';return}
+  if(s.outMode==='code')doSearchCode(s,term);else doSearchTree(s,term);
+  const count=s.outMode==='code'?s.cmMatches.length:s.treeMatchRows.length;
+  const idx=s.outMode==='code'?s.cmIdx:s.treeIdx;
+  q('searchInfo').textContent=count?`${idx+1}/${count}`:'0 risultati';
+}
+function doSearchCode(s,term){
+  const cm=s.outputCm,cur=cm.getSearchCursor(term,null,{caseFold:true});
+  while(cur.findNext()){s.cmMatches.push({from:cur.from(),to:cur.to()});s.cmMarks.push(cm.markText(cur.from(),cur.to(),{className:'cm-searching'}))}
+  if(s.cmMatches.length){s.cmIdx=0;goToCodeMatch(s)}
+}
+function goToCodeMatch(s){const m=s.cmMatches[s.cmIdx];s.outputCm.scrollIntoView({from:m.from,to:m.to},100);s.outputCm.setSelection(m.from,m.to);updateSearchInfo(s)}
+function doSearchTree(s,term){
+  const allRows=document.getElementById(s.id).querySelector('[data-r="stree"]').querySelectorAll('.st-row');
+  const lt=term.toLowerCase();
+  allRows.forEach(row=>{if(row.textContent.toLowerCase().includes(lt)){row.classList.add('st-highlight');s.treeMatchRows.push(row);expandAncestors(row)}});
+  if(s.treeMatchRows.length){s.treeIdx=0;goToTreeMatch(s)}
+}
+function expandAncestors(el){let n=el.parentElement;while(n){if(n.classList?.contains('st-children')&&n.style.display==='none'){n.style.display='';const prev=n.previousElementSibling;if(prev){const tg=prev.querySelector('.st-toggle');if(tg)tg.classList.remove('collapsed')}}n=n.parentElement}}
+function goToTreeMatch(s){s.treeMatchRows.forEach(r=>r.classList.remove('st-current'));const row=s.treeMatchRows[s.treeIdx];row.classList.add('st-current');row.scrollIntoView({behavior:'smooth',block:'center'});updateSearchInfo(s)}
+function searchNext(s){if(s.outMode==='code'){if(!s.cmMatches.length)return;s.cmIdx=(s.cmIdx+1)%s.cmMatches.length;goToCodeMatch(s)}else{if(!s.treeMatchRows.length)return;s.treeIdx=(s.treeIdx+1)%s.treeMatchRows.length;goToTreeMatch(s)}}
+function searchPrev(s){if(s.outMode==='code'){if(!s.cmMatches.length)return;s.cmIdx=(s.cmIdx-1+s.cmMatches.length)%s.cmMatches.length;goToCodeMatch(s)}else{if(!s.treeMatchRows.length)return;s.treeIdx=(s.treeIdx-1+s.treeMatchRows.length)%s.treeMatchRows.length;goToTreeMatch(s)}}
+function updateSearchInfo(s){const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);const count=s.outMode==='code'?s.cmMatches.length:s.treeMatchRows.length;const idx=s.outMode==='code'?s.cmIdx:s.treeIdx;q('searchInfo').textContent=count?`${idx+1}/${count}`:'0 risultati'}
 
-    // Display metadata in the UI
-    function displayMetadata(metadata) {
-      const metadataSection = document.getElementById('metadataSection');
-      const metaTitle = document.getElementById('metaTitle');
-      const metaTimestamp = document.getElementById('metaTimestamp');
-      const metaPodName = document.getElementById('metaPodName');
-      
-      // Only show metadata section if at least one field has a value
-      const hasMetadata = metadata.title || metadata.timestamp || metadata.podName;
-      
-      if (hasMetadata) {
-        metaTitle.textContent = metadata.title || '-';
-        
-        // Format timestamp if present
-        let formattedTimestamp = '-';
-        if (metadata.timestamp) {
-          try {
-            const date = new Date(metadata.timestamp);
-            // Format: DD/MM/YYYY HH:MM:SS
-            formattedTimestamp = date.toLocaleString('it-IT', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            });
-          } catch (e) {
-            formattedTimestamp = metadata.timestamp;
-          }
-        }
-        metaTimestamp.textContent = formattedTimestamp;
-        
-        metaPodName.textContent = metadata.podName || '-';
-        metadataSection.classList.remove('hidden');
-      } else {
-        metadataSection.classList.add('hidden');
-      }
-      
-      // Adjust output height after changing metadata visibility
-      adjustOutputHeight();
-    }
+/* ═══ VIEWS ═══ */
+function toInput(s){
+  s.view='input';const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  q('inView').classList.remove('hidden');q('codeView').classList.add('hidden');q('treeView').classList.add('hidden');
+  q('inActions').classList.remove('hidden');q('outActions').classList.add('hidden');
+  q('searchBar').classList.add('hidden');s.searchOpen=false;clearAllSearch(s);
+  q('dot').className='dot dot-blue';
+  setTimeout(()=>s.inputCm.refresh(),10);
+}
+function toOutput(s){
+  s.view='output';const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  q('inView').classList.add('hidden');
+  q('inActions').classList.add('hidden');q('outActions').classList.remove('hidden');q('outActions').style.display='flex';
+  q('dot').className='dot dot-green';
+  setMode(s,s.outMode);
+}
+function setMode(s,m){
+  const prev=s.outMode;s.outMode=m;
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  q('codeView').classList.toggle('hidden',m!=='code');q('treeView').classList.toggle('hidden',m!=='tree');
+  q('vCode').classList.toggle('active',m==='code');q('vTree').classList.toggle('active',m==='tree');
+  if(m==='code')setTimeout(()=>s.outputCm.refresh(),10);else if(s.parsed)renderSchema(s);
+  if(s.searchOpen&&prev!==m)doSearch(s);
+}
+function reset(s){
+  s.inputCm.setValue('');s.outputCm.setValue('');s.parsed=null;
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  q('errBox').classList.add('hidden');q('inWrap').classList.remove('editor-error');
+  q('metaBar').classList.add('hidden');q('stree').innerHTML='';
+  clearAllSearch(s);q('searchBar').classList.add('hidden');s.searchOpen=false;
+  s.name='Tab '+s.id.replace('p','');
+  q('lbl').textContent=s.name;
+  toInput(s);
+}
+async function copyOut(s){
+  try{await navigator.clipboard.writeText(s.outputCm.getValue());
+    const b=document.getElementById(s.id).querySelector('[data-r="copyBtn"]');
+    const o=b.innerHTML;b.innerHTML='✓ Copiato!';setTimeout(()=>{b.innerHTML=o},1400);
+  }catch{alert('Copia fallita')}
+}
 
-    // Parse
-    parseButton.addEventListener('click', () => {
-      document.getElementById('editorWrapper').classList.remove('editor-error');
-      errorMsg.textContent = '';
-      let text = cm.getValue().trim();
-      let extractedJson = null;
+/* ═══ PARSE ═══ */
+function parse(s){
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  q('inWrap').classList.remove('editor-error');q('errBox').classList.add('hidden');
+  const text=s.inputCm.getValue().trim();if(!text)return;
+  const meta=getMeta(text);
+  if(meta.title||meta.ts||meta.pod){
+    q('mTitle').textContent=meta.title||'-';q('mTs').textContent=meta.ts?fmtDate(meta.ts):'-';
+    q('mPod').textContent=meta.pod||'-';q('metaBar').classList.remove('hidden');
+  }else q('metaBar').classList.add('hidden');
+  let ej=null;
+  try{const o=JSON.parse(text);if(o?.message)ej=extractJson(o.message)}catch{}
+  if(!ej)ej=extractJson(text);
+  if(!ej){q('errBox').textContent='Nessun JSON array/object trovato';q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error');return}
+  const ue=unescape(ej);
+  try{
+    const dp=deepParse(JSON.parse(ue));s.parsed=dp;
+    s.outputCm.setValue(JSON.stringify(dp,null,2));
+    if(meta.title){s.name=meta.title.substring(0,22)+(meta.title.length>22?'…':'');q('lbl').textContent=s.name;updateLayout()}
+    toOutput(s);
+  }catch(e){q('errBox').textContent='JSON non valido: '+e.message;q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error')}
+}
 
-      // Extract and display metadata
-      const metadata = extractMetadata(text);
-      displayMetadata(metadata);
+/* ═══ SCHEMA ═══ */
+function renderSchema(s){const c=document.getElementById(s.id).querySelector('[data-r="stree"]');c.innerHTML='';if(!s.parsed)return;c.appendChild(buildSN(null,infer(s.parsed),true))}
+function infer(v){if(v===null)return{t:'null'};if(Array.isArray(v)){const n=v.length;if(!n)return{t:'array',items:null,n:0};return{t:'array',items:infer(v[0]),n}}if(typeof v==='object'){const k={};for(const key in v)if(v.hasOwnProperty(key))k[key]=infer(v[key]);return{t:'object',keys:k}}return{t:typeof v}}
+function buildSN(key,sc,root){
+  const w=document.createElement('div');w.className='st-node';
+  const exp=sc.t==='object'||(sc.t==='array'&&sc.items);
+  const row=document.createElement('div');row.className='st-row';
+  if(exp){
+    const tg=document.createElement('span');tg.className='st-toggle';
+    tg.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>';
+    row.appendChild(tg);
+    const lbl=document.createElement('span');let h='';
+    if(key!==null&&!root)h+=`<span class="st-key">${esc(String(key))}</span><span class="st-colon">:</span> `;
+    if(sc.t==='object'){const n=Object.keys(sc.keys).length;h+=`<span class="st-badge st-b-obj">⦃ Object</span><span class="st-count">${n} key${n!==1?'s':''}</span>`}
+    else{h+=`<span class="st-badge st-b-arr">⦋ Array</span><span class="st-count">${sc.n} elem${sc.n!==1?'s':''}</span>`}
+    lbl.innerHTML=h;row.appendChild(lbl);w.appendChild(row);
+    const ch=document.createElement('div');ch.className='st-children';
+    if(sc.t==='object'){for(const k in sc.keys)ch.appendChild(buildSN(k,sc.keys[k],false))}
+    else if(sc.items){const el=buildSN(null,sc.items,false);const erow=el.querySelector('.st-row');if(erow){const tag=document.createElement('span');tag.className='st-elem-tag';tag.textContent='[ element ]';erow.insertBefore(tag,erow.children[1])}ch.appendChild(el)}
+    w.appendChild(ch);
+    tg.addEventListener('click',()=>{const c=ch.style.display==='none';ch.style.display=c?'':'none';tg.classList.toggle('collapsed',!c)});
+  }else{
+    const sp=document.createElement('span');sp.className='st-spacer';row.appendChild(sp);
+    const lbl=document.createElement('span');let h='';
+    if(key!==null)h+=`<span class="st-key">${esc(String(key))}</span><span class="st-colon">:</span> `;
+    const map={string:'st-b-str',number:'st-b-num',boolean:'st-b-bool','null':'st-b-null'};
+    const icons={string:'✎',number:'#',boolean:'✓','null':'∅'};
+    const bc=map[sc.t]||'st-b-str';const ic=icons[sc.t]||'';
+    h+=`<span class="st-badge ${bc}">${ic} ${sc.t.charAt(0).toUpperCase()+sc.t.slice(1)}</span>`;
+    lbl.innerHTML=h;row.appendChild(lbl);w.appendChild(row);
+  }
+  return w;
+}
 
-      // Try parse outer object first
-      try {
-        const outer = JSON.parse(text);
-        if (outer && outer.message) {
-          const msg = outer.message;
-          extractedJson = extractJsonFromString(msg);
-        }
-      } catch (e) {
-        // ignore — maybe not full outer JSON
-      }
+/* ═══ UTILS ═══ */
+function getMeta(t){const m={title:'',ts:'',pod:''};try{const o=JSON.parse(t);if(o['@timestamp'])m.ts=o['@timestamp'];if(o.name)m.pod=o.name;if(o.message){const msg=o.message,a=msg.indexOf('['),b=msg.indexOf('{');let j=-1;if(a!==-1&&b!==-1)j=Math.min(a,b);else if(a!==-1)j=a;else if(b!==-1)j=b;if(j>0)m.title=msg.substring(0,j).trim().replace(/[-\s]+$/,'')}}catch{}return m}
+function fmtDate(ts){try{return new Date(ts).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch{return ts}}
+function extractJson(s){let m=s.match(/\[.*\]$/s);if(m)return m[0];m=s.match(/\{.*\}$/s);if(m)return m[0];const a=s.indexOf('['),b=s.indexOf('{');if(a!==-1&&(b===-1||a<b))return s.substring(a);if(b!==-1)return s.substring(b);return null}
+function deepParse(o){if(o==null)return o;if(Array.isArray(o))return o.map(deepParse);if(typeof o==='object'){const r={};for(const k in o)if(o.hasOwnProperty(k))r[k]=deepParse(o[k]);return r}if(typeof o==='string'){const t=o.trim();if((t[0]==='{'&&t.endsWith('}'))||(t[0]==='['&&t.endsWith(']'))){try{return deepParse(JSON.parse(t))}catch{return o}}}return o}
+function unescape(s){let r=s,i=0;while(i<10){try{JSON.parse(r);return r}catch{const n=r.replace(/\\\\/g,'\u0000').replace(/\\"/g,'"').replace(/\u0000/g,'\\');if(n===r)break;r=n;i++}}return r}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
-      // If not found in outer.message, try to extract directly from text
-      if (!extractedJson) {
-        extractedJson = extractJsonFromString(text);
-      }
-
-      if (!extractedJson) {
-        errorMsg.textContent = 'No valid JSON array or object found in input';
-        document.getElementById('editorWrapper').classList.add('editor-error');
-        return;
-      }
-
-      // Now unescape and parse
-      const unescaped = unescapeJson(extractedJson);
-
-      try {
-        const parsed = JSON.parse(unescaped);
-        
-        // Deep parse: recursively parse any stringified JSON fields
-        const deepParsed = deepParseJson(parsed);
-        
-        outputCm.setValue(JSON.stringify(deepParsed, null, 2));
-        errorMsg.textContent = '';
-        outputTab.click();
-      } catch (e) {
-        // Show error message and highlight editor in red
-        errorMsg.textContent = 'Invalid JSON: ' + e.message;
-        document.getElementById('editorWrapper').classList.add('editor-error');
-      }
-    });
-
-    // Extract JSON (array or object) from a string
-    function extractJsonFromString(str) {
-      // Try to find array first
-      let match = str.match(/\[.*\]$/s);
-      if (match) {
-        return match[0];
-      }
-      
-      // Try to find object
-      match = str.match(/\{.*\}$/s);
-      if (match) {
-        return match[0];
-      }
-
-      // Alternative: look for first [ or { and try to extract from there
-      const arrayStart = str.indexOf('[');
-      const objStart = str.indexOf('{');
-      
-      if (arrayStart !== -1 && (objStart === -1 || arrayStart < objStart)) {
-        return str.substring(arrayStart);
-      }
-      
-      if (objStart !== -1) {
-        return str.substring(objStart);
-      }
-
-      return null;
-    }
-
-    // Recursively parse any stringified JSON fields
-    function deepParseJson(obj) {
-      if (obj === null || obj === undefined) {
-        return obj;
-      }
-      
-      // Handle arrays
-      if (Array.isArray(obj)) {
-        return obj.map(item => deepParseJson(item));
-      }
-      
-      // Handle objects
-      if (typeof obj === 'object') {
-        const result = {};
-        for (const key in obj) {
-          if (obj.hasOwnProperty(key)) {
-            result[key] = deepParseJson(obj[key]);
-          }
-        }
-        return result;
-      }
-      
-      // Handle strings that might be JSON
-      if (typeof obj === 'string') {
-        // Check if it looks like JSON (starts with { or [)
-        const trimmed = obj.trim();
-        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
-            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-          try {
-            // Try to parse it
-            const parsed = JSON.parse(trimmed);
-            // Recursively parse the result
-            return deepParseJson(parsed);
-          } catch (e) {
-            // If it fails, just return the original string
-            return obj;
-          }
-        }
-      }
-      
-      // Return primitives as-is
-      return obj;
-    }
-
-    // Unescape JSON with multiple levels of escaping
-    function unescapeJson(str) {
-      let result = str;
-      let iterations = 0;
-      const maxIterations = 10;
-
-      // Try parsing at each unescape level
-      while (iterations < maxIterations) {
-        try {
-          // Try to parse the current result
-          JSON.parse(result);
-          // If successful, return it
-          return result;
-        } catch (e) {
-          // If parsing failed, try one more level of unescaping
-          const newResult = unescapeOneLevel(result);
-          
-          // If no change, stop trying
-          if (newResult === result) {
-            break;
-          }
-          
-          result = newResult;
-          iterations++;
-        }
-      }
-
-      // Return the last attempt even if it doesn't parse
-      return result;
-    }
-
-    // Unescape one level of JSON escaping
-    function unescapeOneLevel(str) {
-      // First handle escaped backslashes, then escaped quotes
-      // This order is important!
-      return str
-        .replace(/\\\\/g, '\u0000')  // Temporarily replace \\ with null char
-        .replace(/\\"/g, '"')         // Replace \" with "
-        .replace(/\u0000/g, '\\');    // Restore single backslashes
-    }
-
-    // Copy output
-    copyButton.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(outputCm.getValue());
-        copyButton.textContent = "Copied!";
-        copyButton.classList.add('bg-green-800');
-        setTimeout(() => {
-          copyButton.textContent = "Copy JSON";
-          copyButton.classList.remove('bg-green-800');
-        }, 1500);
-      } catch {
-        alert("Failed to copy to clipboard");
-      }
-    });
-
-    // Remove error state when user types
-    cm.on('change', () => {
-      document.getElementById('editorWrapper').classList.remove('editor-error');
-      errorMsg.textContent = '';
-    });
-
-    // ensure CodeMirror refresh on window resize (keeps coordinates accurate)
-    window.addEventListener('resize', () => {
-      cm.refresh();
-      outputCm.refresh();
-    });
-  </script>
+addSession();
+window.addEventListener('resize',()=>sessions.forEach(s=>{s.inputCm?.refresh();s.outputCm?.refresh()}));
+</script>
 </body>
 </html>
