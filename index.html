@@ -63,21 +63,26 @@
     }
     .panel:last-child{border-right:none}
 
-    /* Panel header — buttons LEFT, label+view RIGHT */
+    /* Panel header — REARRANGED: label+views LEFT, actions RIGHT */
     .panel-head{
       display:flex;align-items:center;justify-content:space-between;
       padding:6px 10px;background:#f9fafb;border-bottom:1px solid #e5e7eb;
-      min-height:40px;flex-shrink:0;gap:8px;
+      min-height:42px;flex-shrink:0;gap:8px;
     }
-    .head-left{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-    .head-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+    .head-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+    .head-right{display:flex;align-items:center;gap:4px;flex-shrink:0;flex-wrap:wrap}
 
+    /* Title / label — improved: bold, bigger, no hard truncation */
     .panel-label{
-      font-size:11px;font-weight:700;text-transform:uppercase;
-      letter-spacing:.5px;color:#9ca3af;display:flex;align-items:center;gap:5px;
-      white-space:nowrap;max-width:300px; 
+      font-size:13px;font-weight:800;
+      letter-spacing:.3px;color:#1f2937;display:flex;align-items:center;gap:6px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      flex-shrink:1;min-width:0;
     }
-    .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .panel-label-text{
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
     .dot-blue{background:#3b82f6}.dot-green{background:#10b981}
 
     .close-panel{
@@ -88,7 +93,10 @@
     }
     .close-panel:hover{background:#fee2e2;color:#dc2626}
 
-    .view-pills{display:flex;gap:2px}
+    /* Separator between label and view pills */
+    .head-sep{width:1px;height:18px;background:#e5e7eb;flex-shrink:0}
+
+    .view-pills{display:flex;gap:2px;flex-shrink:0}
     .vpill{
       padding:3px 10px;font-size:11px;font-weight:600;border-radius:5px;
       cursor:pointer;border:1px solid transparent;background:transparent;
@@ -208,6 +216,28 @@
     .st-count{color:#9ca3af;font-size:11px}
     .st-elem-tag{font-size:10px;font-style:italic;color:#78716c;background:#f5f5f4;border:1px dashed #d6d3d1;border-radius:3px;padding:1px 6px}
 
+    /* Focus button on schema rows */
+    .st-focus{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:20px;height:20px;border-radius:4px;cursor:pointer;
+      background:#eef2ff;border:1px solid #c7d2fe;color:#6366f1;
+      font-size:12px;padding:0;transition:all .12s;flex-shrink:0;margin-left:auto;
+    }
+    .st-focus:hover{background:#6366f1;color:#fff;border-color:#6366f1}
+
+    /* Focus breadcrumb bar */
+    .focus-bar{
+      display:flex;align-items:center;gap:8px;
+      padding:6px 12px;background:linear-gradient(90deg,#eef2ff,#f5f3ff);
+      border-bottom:1px solid #c7d2fe;font-size:12px;flex-shrink:0;
+    }
+    .focus-bar-path{
+      flex:1;color:#4f46e5;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .focus-bar-path span{color:#7c3aed}
+    .focus-bar-path .path-sep{color:#c7d2fe;margin:0 2px;font-weight:400}
+
     .hidden{display:none!important}
 
     @media(max-width:780px){
@@ -242,7 +272,7 @@ function addSession(){
   const s={id:'p'+counter,name:'Tab '+counter,inputCm:null,outputCm:null,
     view:'input',outMode:'code',parsed:null,
     cmMarks:[],cmMatches:[],cmIdx:-1,
-    treeMatchRows:[],treeIdx:-1,searchOpen:false};
+    treeMatchRows:[],treeIdx:-1,searchOpen:false,focusedPath:null};
   sessions.push(s);
   buildPanel(s);updateLayout();
 }
@@ -255,7 +285,6 @@ function removeSession(id){
 function updateLayout(){
   document.getElementById('appShell').setAttribute('data-count',sessions.length);
   document.getElementById('addTabBtn').disabled=sessions.length>=MAX;
-  // Show/hide close buttons (only if >1 panel)
   sessions.forEach(s=>{
     const el=document.getElementById(s.id);
     const cb=el?.querySelector('[data-r="closePanel"]');
@@ -271,35 +300,44 @@ function buildPanel(s){
   const p=document.createElement('div');p.className='panel';p.id=s.id;
   p.innerHTML=`<div class="panel-head">
       <div class="head-left">
-        <!-- Input actions -->
+        <!-- Title/Label always visible on left -->
+        <div class="panel-label">
+          <span class="dot dot-blue" data-r="dot"></span>
+          <span class="panel-label-text" data-r="lbl">Tab ${counter}</span>
+        </div>
+        <!-- View pills + search (only in output view) -->
+        <div data-r="outLeftControls" class="hidden" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <div class="head-sep"></div>
+          <div class="view-pills">
+            <button class="vpill active" data-r="vCode">{ } Code</button>
+            <button class="vpill" data-r="vTree">⧉ Schema</button>
+          </div>
+            <button class="btn-icon" data-r="searchToggle" title="Cerca (Ctrl+F)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="head-right">
+        <!-- Input actions (right side) -->
         <div data-r="inActions" style="display:flex;gap:4px;align-items:center">
           <button class="btn btn-primary" data-r="parseBtn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Parse
           </button>
           <button class="btn btn-ghost" data-r="clrIn">Clear</button>
         </div>
-        <!-- Output actions -->
+        <!-- Output actions (right side) -->
         <div data-r="outActions" class="hidden" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-success" data-r="copyBtn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
           </button>
           <button class="btn btn-ghost" data-r="backBtn">← Input</button>
           <button class="btn btn-ghost" data-r="clrAll">Clear</button>
-          <div style="width:1px;height:18px;background:#e5e7eb;margin:0 2px"></div>
-          <div class="view-pills">
-            <button class="vpill active" data-r="vCode">{ } Code</button>
-            <button class="vpill" data-r="vTree">⧉ Schema</button>
-          </div>
-          <button class="btn-icon" data-r="searchToggle" title="Cerca (Ctrl+F)">🔍</button>
         </div>
-      </div>
-      <div class="head-right">
-        <div class="panel-label"><span class="dot dot-blue" data-r="dot"></span><span data-r="lbl">Tab ${counter}</span></div>
         <button class="close-panel hidden" data-r="closePanel" title="Chiudi tab">&times;</button>
       </div>
     </div>
     <div data-r="searchBar" class="search-bar hidden">
-      <input data-r="searchInput" type="text" placeholder="Cerca nel JSON…" spellcheck="false"/>
+      <input data-r="searchInput" type="text" placeholder="Find..." spellcheck="false"/>
       <span data-r="searchInfo" class="search-info"></span>
       <button class="btn-icon" data-r="searchPrev" title="Precedente" style="padding:3px 7px">▲</button>
       <button class="btn-icon" data-r="searchNext" title="Successivo" style="padding:3px 7px">▼</button>
@@ -314,7 +352,7 @@ function buildPanel(s){
     <div class="panel-body">
       <div data-r="inView" style="height:100%"><div data-r="inWrap" style="height:100%"><textarea data-r="inTa"></textarea></div></div>
       <div data-r="codeView" class="hidden" style="height:100%"><textarea data-r="outTa"></textarea></div>
-      <div data-r="treeView" class="hidden" style="height:100%"><div data-r="stree" class="schema-tree"></div></div>
+      <div data-r="treeView" class="hidden" style="height:100%;display:flex;flex-direction:column"><div data-r="focusBar" class="focus-bar hidden"><span class="focus-bar-path" data-r="focusPath"></span><button class="btn btn-success" data-r="focusCopy" title="Copia path"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy path</button><button class="btn btn-ghost" data-r="focusBack">← Full schema</button></div><div data-r="stree" class="schema-tree" style="flex:1;min-height:0"></div></div>
     </div>`;
   row.appendChild(p);
 
@@ -343,6 +381,13 @@ function buildPanel(s){
   });
   q('searchNext').addEventListener('click',()=>searchNext(s));
   q('searchPrev').addEventListener('click',()=>searchPrev(s));
+  q('focusBack').addEventListener('click',()=>{s.focusedPath=null;renderSchema(s)});
+  q('focusCopy').addEventListener('click',()=>{
+    const pathText=s.focusedPath||'';
+    navigator.clipboard.writeText(pathText).then(()=>{
+      const b=q('focusCopy');const o=b.innerHTML;b.innerHTML='✓ Copied!';setTimeout(()=>{b.innerHTML=o},1400);
+    }).catch(()=>{});
+  });
 
   s.outputCm.setOption('extraKeys',{'Ctrl-F':()=>toggleSearch(s,true),'Cmd-F':()=>toggleSearch(s,true)});
   s.inputCm.on('change',()=>{q('inWrap').classList.remove('editor-error');q('errBox').classList.add('hidden')});
@@ -399,6 +444,7 @@ function toInput(s){
   s.view='input';const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
   q('inView').classList.remove('hidden');q('codeView').classList.add('hidden');q('treeView').classList.add('hidden');
   q('inActions').classList.remove('hidden');q('outActions').classList.add('hidden');
+  q('outLeftControls').classList.add('hidden');q('outLeftControls').style.display='none';
   q('searchBar').classList.add('hidden');s.searchOpen=false;clearAllSearch(s);
   q('dot').className='dot dot-blue';
   setTimeout(()=>s.inputCm.refresh(),10);
@@ -407,6 +453,7 @@ function toOutput(s){
   s.view='output';const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
   q('inView').classList.add('hidden');
   q('inActions').classList.add('hidden');q('outActions').classList.remove('hidden');q('outActions').style.display='flex';
+  q('outLeftControls').classList.remove('hidden');q('outLeftControls').style.display='flex';
   q('dot').className='dot dot-green';
   setMode(s,s.outMode);
 }
@@ -423,7 +470,7 @@ function reset(s){
   const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
   q('errBox').classList.add('hidden');q('inWrap').classList.remove('editor-error');
   q('metaBar').classList.add('hidden');q('stree').innerHTML='';
-  clearAllSearch(s);q('searchBar').classList.add('hidden');s.searchOpen=false;
+  clearAllSearch(s);q('searchBar').classList.add('hidden');s.searchOpen=false;s.focusedPath=null;
   s.name='Tab '+s.id.replace('p','');
   q('lbl').textContent=s.name;
   toInput(s);
@@ -431,8 +478,8 @@ function reset(s){
 async function copyOut(s){
   try{await navigator.clipboard.writeText(s.outputCm.getValue());
     const b=document.getElementById(s.id).querySelector('[data-r="copyBtn"]');
-    const o=b.innerHTML;b.innerHTML='✓ Copiato!';setTimeout(()=>{b.innerHTML=o},1400);
-  }catch{alert('Copia fallita')}
+    const o=b.innerHTML;b.innerHTML='✓ Copied!';setTimeout(()=>{b.innerHTML=o},1400);
+  }catch{alert('Copy failed')}
 }
 
 /* ═══ PARSE ═══ */
@@ -448,20 +495,51 @@ function parse(s){
   let ej=null;
   try{const o=JSON.parse(text);if(o?.message)ej=extractJson(o.message)}catch{}
   if(!ej)ej=extractJson(text);
-  if(!ej){q('errBox').textContent='Nessun JSON array/object trovato';q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error');return}
+  if(!ej){q('errBox').textContent='No JSON array/object find';q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error');return}
   const ue=unescape(ej);
   try{
     const dp=deepParse(JSON.parse(ue));s.parsed=dp;
     s.outputCm.setValue(JSON.stringify(dp,null,2));
-    if(meta.title){s.name=meta.title.substring(0,22)+(meta.title.length>22?'…':'');q('lbl').textContent=s.name;updateLayout()}
+    if(meta.title){s.name=meta.title.substring(0,40)+(meta.title.length>40?'…':'');q('lbl').textContent=s.name;updateLayout()}
     toOutput(s);
-  }catch(e){q('errBox').textContent='JSON non valido: '+e.message;q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error')}
+  }catch(e){q('errBox').textContent='Invalid JSON: '+e.message;q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error')}
 }
 
 /* ═══ SCHEMA ═══ */
-function renderSchema(s){const c=document.getElementById(s.id).querySelector('[data-r="stree"]');c.innerHTML='';if(!s.parsed)return;c.appendChild(buildSN(null,infer(s.parsed),true))}
+function renderSchema(s){
+  const p=document.getElementById(s.id),q=r=>p.querySelector(`[data-r="${r}"]`);
+  const c=q('stree');c.innerHTML='';if(!s.parsed)return;
+  const schema=infer(s.parsed);
+  if(s.focusedPath){
+    // Show only the focused subtree
+    const sub=getSchemaAtPath(schema,s.focusedPath);
+    if(sub){
+      c.appendChild(buildSN(null,sub,true,s,s.focusedPath));
+      q('focusBar').classList.remove('hidden');
+      // Render path with separators
+      const parts=s.focusedPath.replace(/\[\]/g,'.[].').split('.').filter(Boolean);
+      let html='';
+      parts.forEach((pt,i)=>{if(i>0)html+='<span class="path-sep">.</span>';html+=`<span>${esc(pt)}</span>`});
+      q('focusPath').innerHTML=html;
+    }else{s.focusedPath=null;c.appendChild(buildSN(null,schema,true,s,''));q('focusBar').classList.add('hidden')}
+  }else{
+    c.appendChild(buildSN(null,schema,true,s,''));
+    q('focusBar').classList.add('hidden');
+  }
+}
+function getSchemaAtPath(schema,path){
+  const parts=path.replace(/\[\]/g,'.[].').split('.').filter(Boolean);
+  let cur=schema;
+  for(const pt of parts){
+    if(pt==='[]'){if(cur.t==='array'&&cur.items)cur=cur.items;else return null}
+    else{if(cur.t==='object'&&cur.keys&&cur.keys[pt])cur=cur.keys[pt];else return null}
+  }
+  return cur;
+}
+function focusSchema(s,path){s.focusedPath=path;renderSchema(s)}
 function infer(v){if(v===null)return{t:'null'};if(Array.isArray(v)){const n=v.length;if(!n)return{t:'array',items:null,n:0};return{t:'array',items:infer(v[0]),n}}if(typeof v==='object'){const k={};for(const key in v)if(v.hasOwnProperty(key))k[key]=infer(v[key]);return{t:'object',keys:k}}return{t:typeof v}}
-function buildSN(key,sc,root){
+function buildSN(key,sc,root,session,parentPath){
+  const curPath=root?parentPath:(key!==null?(parentPath?(parentPath+'.'+key):key):(parentPath?parentPath+'[]':'[]'));
   const w=document.createElement('div');w.className='st-node';
   const exp=sc.t==='object'||(sc.t==='array'&&sc.items);
   const row=document.createElement('div');row.className='st-row';
@@ -473,10 +551,17 @@ function buildSN(key,sc,root){
     if(key!==null&&!root)h+=`<span class="st-key">${esc(String(key))}</span><span class="st-colon">:</span> `;
     if(sc.t==='object'){const n=Object.keys(sc.keys).length;h+=`<span class="st-badge st-b-obj">⦃ Object</span><span class="st-count">${n} key${n!==1?'s':''}</span>`}
     else{h+=`<span class="st-badge st-b-arr">⦋ Array</span><span class="st-count">${sc.n} elem${sc.n!==1?'s':''}</span>`}
-    lbl.innerHTML=h;row.appendChild(lbl);w.appendChild(row);
+    lbl.innerHTML=h;row.appendChild(lbl);
+    // Focus button (not on root)
+    if(!root&&session){
+      const fb=document.createElement('button');fb.className='st-focus';fb.title='Focus: '+curPath;fb.textContent='⊕';
+      fb.addEventListener('click',e=>{e.stopPropagation();focusSchema(session,curPath)});
+      row.appendChild(fb);
+    }
+    w.appendChild(row);
     const ch=document.createElement('div');ch.className='st-children';
-    if(sc.t==='object'){for(const k in sc.keys)ch.appendChild(buildSN(k,sc.keys[k],false))}
-    else if(sc.items){const el=buildSN(null,sc.items,false);const erow=el.querySelector('.st-row');if(erow){const tag=document.createElement('span');tag.className='st-elem-tag';tag.textContent='[ element ]';erow.insertBefore(tag,erow.children[1])}ch.appendChild(el)}
+    if(sc.t==='object'){for(const k in sc.keys)ch.appendChild(buildSN(k,sc.keys[k],false,session,curPath))}
+    else if(sc.items){const el=buildSN(null,sc.items,false,session,curPath);const erow=el.querySelector('.st-row');if(erow){const tag=document.createElement('span');tag.className='st-elem-tag';tag.textContent='[ element ]';erow.insertBefore(tag,erow.children[1])}ch.appendChild(el)}
     w.appendChild(ch);
     tg.addEventListener('click',()=>{const c=ch.style.display==='none';ch.style.display=c?'':'none';tg.classList.toggle('collapsed',!c)});
   }else{
@@ -487,7 +572,14 @@ function buildSN(key,sc,root){
     const icons={string:'✎',number:'#',boolean:'✓','null':'∅'};
     const bc=map[sc.t]||'st-b-str';const ic=icons[sc.t]||'';
     h+=`<span class="st-badge ${bc}">${ic} ${sc.t.charAt(0).toUpperCase()+sc.t.slice(1)}</span>`;
-    lbl.innerHTML=h;row.appendChild(lbl);w.appendChild(row);
+    lbl.innerHTML=h;row.appendChild(lbl);
+    // Focus button on leaf keys too
+    if(key!==null&&session){
+      const fb=document.createElement('button');fb.className='st-focus';fb.title='Focus: '+curPath;fb.textContent='⊕';
+      fb.addEventListener('click',e=>{e.stopPropagation();focusSchema(session,curPath)});
+      row.appendChild(fb);
+    }
+    w.appendChild(row);
   }
   return w;
 }
