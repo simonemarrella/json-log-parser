@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>JSON Log Parser</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4h-3z'/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/><line x1='16' y1='13' x2='8' y2='13'/><line x1='16' y1='17' x2='8' y2='17'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -41,12 +41,12 @@
       display:inline-flex;align-items:center;gap:5px;
       padding:5px 14px;font-size:12px;font-weight:600;
       border-radius:6px;cursor:pointer;
-      border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);
+      border:none;background:rgba(255,255,255,.12);
       color:#fff;transition:all .15s;font-family:inherit;
     }
-    .add-tab-header:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5)}
+    .add-tab-header:hover{background:rgba(255,255,255,.25)}
     .add-tab-header:disabled{opacity:.35;cursor:not-allowed}
-    .add-tab-header:disabled:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35)}
+    .add-tab-header:disabled:hover{background:rgba(255,255,255,.12)}
 
     .panels-row{
       display:flex;gap:0;background:#fff;
@@ -57,7 +57,7 @@
       flex:1 1 0;min-width:0;
       display:flex;flex-direction:column;
       border-right:1px solid #e5e7eb;
-      height:800px;overflow:hidden;
+      height:830px;overflow:hidden;
     }
     .panel:last-child{border-right:none}
 
@@ -110,6 +110,13 @@
     }
     .search-bar input:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15)}
     .search-info{font-size:11px;color:#92400e;font-weight:600;min-width:55px;text-align:center;white-space:nowrap}
+    .search-all{
+      padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;
+      cursor:pointer;border:1px solid #c7d2fe;background:#eef2ff;color:#6366f1;
+      font-family:inherit;transition:all .12s;white-space:nowrap;
+    }
+    .search-all:hover:not(:disabled){background:#6366f1;color:#fff;border-color:#6366f1}
+    .search-all:disabled{opacity:.35;cursor:not-allowed}
 
     .meta-bar{
       display:none !important;align-items:center;gap:14px;flex-wrap:wrap;
@@ -139,6 +146,8 @@
     .btn-success:hover{background:#047857}
     .btn-ghost{background:#f3f4f6;color:#4b5563}
     .btn-ghost:hover{background:#e5e7eb}
+    .btn-clear{background:#fef2f2;color:#dc2626}
+    .btn-clear:hover{background:#fee2e2;color:#b91c1c}
     .btn-icon{
       padding:4px 7px;background:#fff;color:#6b7280;
       border:1px solid #e5e7eb;border-radius:5px;cursor:pointer;
@@ -280,6 +289,8 @@ function updateLayout(){
     const el=document.getElementById(s.id);
     const cb=el?.querySelector('[data-r="closePanel"]');
     if(cb) cb.classList.toggle('hidden',sessions.length<=1);
+    const sa=el?.querySelector('[data-r="searchAll"]');
+    if(sa) sa.disabled=sessions.length<2;
   });
   setTimeout(()=>sessions.forEach(s=>{s.inputCm?.refresh();s.outputCm?.refresh()}),50);
 }
@@ -311,20 +322,21 @@ function buildPanel(s){
           <button class="btn btn-primary" data-r="parseBtn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Parse
           </button>
-          <button class="btn btn-ghost" data-r="clrIn">Clear</button>
+          <button class="btn btn-clear" data-r="clrIn">Clear</button>
         </div>
         <div data-r="outActions" class="hidden" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-success" data-r="copyBtn">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy
           </button>
           <button class="btn btn-ghost" data-r="backBtn">← Input</button>
-          <button class="btn btn-ghost" data-r="clrAll">Clear</button>
+          <button class="btn btn-clear" data-r="clrAll">Clear</button>
         </div>
         <button class="close-panel hidden" data-r="closePanel" title="Chiudi tab">&times;</button>
       </div>
     </div>
     <div data-r="searchBar" class="search-bar hidden">
       <input data-r="searchInput" type="text" placeholder="Find..." spellcheck="false"/>
+      <button class="search-all" data-r="searchAll" title="Search in all tabs">Search all tabs</button>
       <span data-r="searchInfo" class="search-info"></span>
       <button class="btn-icon" data-r="searchPrev" title="Precedente" style="padding:3px 7px">▲</button>
       <button class="btn-icon" data-r="searchNext" title="Successivo" style="padding:3px 7px">▼</button>
@@ -368,6 +380,22 @@ function buildPanel(s){
   });
   q('searchNext').addEventListener('click',()=>searchNext(s));
   q('searchPrev').addEventListener('click',()=>searchPrev(s));
+  q('searchAll').addEventListener('click',()=>{
+    const term=q('searchInput').value.trim();
+    if(!term)return;
+    sessions.forEach(sess=>{
+      if(sess.id===s.id||!sess.parsed)return;
+      // Switch to output view if still on input
+      if(sess.view==='input')toOutput(sess);
+      const pp=document.getElementById(sess.id),qq=r=>pp.querySelector(`[data-r="${r}"]`);
+      sess.searchOpen=true;
+      qq('searchBar').classList.remove('hidden');
+      qq('searchToggle').classList.add('active-toggle');
+      qq('searchInput').value=term;
+      doSearch(sess);
+      setTimeout(()=>sess.outputCm.refresh(),10);
+    });
+  });
   q('focusBack').addEventListener('click',()=>{s.focusedPath=null;renderSchema(s)});
   q('focusCopy').addEventListener('click',()=>{
     const pathText=s.focusedPath||'';
@@ -404,9 +432,7 @@ function doSearch(s){
   const term=q('searchInput').value.trim();
   if(!term){q('searchInfo').textContent='';return}
   if(s.outMode==='code')doSearchCode(s,term);else doSearchTree(s,term);
-  const count=s.outMode==='code'?s.cmMatches.length:s.treeMatchRows.length;
-  const idx=s.outMode==='code'?s.cmIdx:s.treeIdx;
-  q('searchInfo').textContent=count?`${idx+1}/${count}`:'0 risultati';
+  updateSearchInfo(s);
 }
 function doSearchCode(s,term){
   const cm=s.outputCm,cur=cm.getSearchCursor(term,null,{caseFold:true});
