@@ -75,11 +75,42 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       flex-shrink:1;min-width:0;
     }
-    .panel-label-text{
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    }
     .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
     .dot-blue{background:#3b82f6}.dot-green{background:#10b981}
+
+    /* ── Editable label ── */
+    .panel-label-text{
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      cursor:text;
+      padding:2px 4px;border-radius:4px;
+      border:1px solid transparent;
+      transition:background .15s, border-color .15s, color .15s;
+      position:relative;
+    }
+    .panel-label-text:hover{
+      background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;
+    }
+    .panel-label-text::after{
+      content:'';display:inline-block;
+      width:11px;height:11px;margin-left:4px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393c5fd' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/%3E%3Cpath d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-size:contain;vertical-align:middle;
+      opacity:0;transition:opacity .15s;
+    }
+    .panel-label-text:hover::after{opacity:1}
+
+    .panel-label-input{
+      font-family:'Montserrat',sans-serif;
+      font-size:13px;font-weight:800;letter-spacing:.3px;
+      color:#1f2937;
+      background:#fff;
+      border:1.5px solid #3b82f6;
+      border-radius:4px;
+      outline:none;
+      padding:2px 6px;
+      min-width:40px;max-width:220px;
+      box-shadow:0 0 0 3px rgba(59,130,246,.15);
+    }
 
     .close-panel{
       display:inline-flex;align-items:center;justify-content:center;
@@ -266,13 +297,13 @@ const MAX=3;let sessions=[],counter=0;
 
 function addSession(){
   if(sessions.length>=MAX)return;
-  let num = 1;
-  while (sessions.some(s => s.name === 'Tab ' + num || s.id === 'p' + num)) num++;
-  counter = num;
-  const s={id:'p'+counter,name:'Tab '+counter,inputCm:null,outputCm:null,
+  counter++;
+  // No auto-numbering: all new tabs start as "Tab"
+  const s={id:'p'+counter,name:'Tab',inputCm:null,outputCm:null,
     view:'input',outMode:'code',parsed:null,
     cmMarks:[],cmMatches:[],cmIdx:-1,
-    treeMatchRows:[],treeIdx:-1,searchOpen:false,focusedPath:null};
+    treeMatchRows:[],treeIdx:-1,searchOpen:false,focusedPath:null,
+    userRenamed:false};
   sessions.push(s);
   buildPanel(s);updateLayout();
 }
@@ -297,6 +328,46 @@ function updateLayout(){
 
 document.getElementById('addTabBtn').addEventListener('click',addSession);
 
+/* ── Editable label logic ── */
+function startEditLabel(s){
+  const p=document.getElementById(s.id);
+  const lbl=p.querySelector('[data-r="lbl"]');
+  if(!lbl||lbl.tagName==='INPUT')return; // already editing
+  const current=s.name||'Tab';
+
+  const inp=document.createElement('input');
+  inp.type='text';
+  inp.className='panel-label-input';
+  inp.value=current;
+  // Size input to fit content
+  inp.style.width=Math.max(50,Math.min(220,current.length*9+20))+'px';
+  lbl.replaceWith(inp);
+  inp.setAttribute('data-r','lbl');
+  inp.focus();
+  inp.select();
+
+  function commit(){
+    const val=inp.value.trim()||'Tab';
+    s.name=val;
+    s.userRenamed=true;
+    const newSpan=document.createElement('span');
+    newSpan.className='panel-label-text';
+    newSpan.setAttribute('data-r','lbl');
+    newSpan.textContent=val;
+    newSpan.addEventListener('click',()=>startEditLabel(s));
+    inp.replaceWith(newSpan);
+  }
+
+  inp.addEventListener('blur',commit);
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();inp.blur();}
+    if(e.key==='Escape'){inp.value=current;s.userRenamed=(current!=='Tab');inp.blur();}
+  });
+  inp.addEventListener('input',()=>{
+    inp.style.width=Math.max(50,Math.min(220,inp.value.length*9+20))+'px';
+  });
+}
+
 function buildPanel(s){
   const row=document.getElementById('panelsRow');
   const p=document.createElement('div');p.className='panel';p.id=s.id;
@@ -304,7 +375,7 @@ function buildPanel(s){
       <div class="head-left">
         <div class="panel-label">
           <span class="dot dot-blue" data-r="dot"></span>
-          <span class="panel-label-text" data-r="lbl">Tab ${counter}</span>
+          <span class="panel-label-text" data-r="lbl">Tab</span>
         </div>
         <div data-r="outLeftControls" class="hidden" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <div class="head-sep"></div>
@@ -355,6 +426,9 @@ function buildPanel(s){
     </div>`;
   row.appendChild(p);
 
+  // Wire up editable label
+  p.querySelector('[data-r="lbl"]').addEventListener('click',()=>startEditLabel(s));
+
   const q=r=>p.querySelector(`[data-r="${r}"]`);
   const cmOpts={mode:{name:"javascript",json:true},lineNumbers:true,theme:"neo",lineWrapping:true,indentUnit:2,tabSize:2,foldGutter:true,gutters:["CodeMirror-linenumbers","CodeMirror-foldgutter"]};
   s.inputCm=CodeMirror.fromTextArea(q('inTa'),{...cmOpts,autofocus:sessions.length===1});
@@ -385,7 +459,6 @@ function buildPanel(s){
     if(!term)return;
     sessions.forEach(sess=>{
       if(sess.id===s.id||!sess.parsed)return;
-      // Switch to output view if still on input
       if(sess.view==='input')toOutput(sess);
       const pp=document.getElementById(sess.id),qq=r=>pp.querySelector(`[data-r="${r}"]`);
       sess.searchOpen=true;
@@ -484,8 +557,8 @@ function reset(s){
   q('errBox').classList.add('hidden');q('inWrap').classList.remove('editor-error');
   q('metaBar').classList.add('hidden');q('stree').innerHTML='';
   clearAllSearch(s);q('searchBar').classList.add('hidden');s.searchOpen=false;s.focusedPath=null;
-  s.name='Tab '+s.id.replace('p','');
-  q('lbl').textContent=s.name;
+  // Preserve the user's custom name on reset; only revert auto-set names
+  if(!s.userRenamed){s.name='Tab';const lbl=q('lbl');if(lbl&&lbl.tagName!=='INPUT')lbl.textContent='Tab';}
   toInput(s);
 }
 async function copyOut(s){
@@ -513,7 +586,12 @@ function parse(s){
   try{
     const dp=deepParse(JSON.parse(ue));s.parsed=dp;
     s.outputCm.setValue(JSON.stringify(dp,null,2));
-    if(meta.title){s.name=meta.title.substring(0,40)+(meta.title.length>40?'…':'');q('lbl').textContent=s.name;updateLayout()}
+    // Auto-set name from parsed title only if user hasn't manually renamed the tab
+    if(meta.title&&!s.userRenamed){
+      s.name=meta.title.substring(0,40)+(meta.title.length>40?'…':'');
+      const lbl=q('lbl');if(lbl&&lbl.tagName!=='INPUT')lbl.textContent=s.name;
+      updateLayout();
+    }
     toOutput(s);
   }catch(e){q('errBox').textContent='Invalid JSON: '+e.message;q('errBox').classList.remove('hidden');q('inWrap').classList.add('editor-error')}
 }
@@ -524,7 +602,6 @@ function infer(v){
   if(Array.isArray(v)){
     const n=v.length;
     if(!n) return {t:'array',items:null,n:0};
-    // Merge schema from ALL elements, not just the first
     let merged=infer(v[0]);
     for(let i=1;i<n;i++) merged=mergeSchema(merged,infer(v[i]));
     return {t:'array',items:merged,n};
@@ -537,18 +614,9 @@ function infer(v){
   return {t:typeof v};
 }
 
-/**
- * Merge two schema nodes into one that represents the union.
- * - object + object → merge keys (marking keys not in both as optional)
- * - array + array  → merge items
- * - same primitive  → keep
- * - different types → {t:'mixed', types:[...unique types]}
- */
 function mergeSchema(a,b){
   if(!a) return b;
   if(!b) return a;
-
-  // Both same type
   if(a.t===b.t){
     if(a.t==='object'){
       const keys={};
@@ -558,7 +626,6 @@ function mergeSchema(a,b){
         const inA=k in aKeys, inB=k in bKeys;
         if(inA&&inB){
           keys[k]=mergeSchema(aKeys[k],bKeys[k]);
-          // Preserve optional if either side was already optional
           if(aKeys[k].optional||bKeys[k].optional) keys[k].optional=true;
         }else{
           keys[k]=inA?{...aKeys[k],optional:true}:{...bKeys[k],optional:true};
@@ -571,14 +638,11 @@ function mergeSchema(a,b){
       return {t:'array',items,n:Math.max(a.n||0,b.n||0)};
     }
     if(a.t==='mixed'){
-      // Merge the types sets
       const set=new Set([...(a.types||[]),...(b.types||[])]);
       return {t:'mixed',types:[...set]};
     }
-    return a; // same primitive
+    return a;
   }
-
-  // Different types → mixed
   const aTypes=a.t==='mixed'?(a.types||[]):[a.t];
   const bTypes=b.t==='mixed'?(b.types||[]):[b.t];
   const set=new Set([...aTypes,...bTypes]);
@@ -645,7 +709,6 @@ function buildSN(key,sc,root,session,parentPath){
     const lbl=document.createElement('span');let h='';
     if(key!==null) h+=`<span class="st-key">${esc(String(key))}</span>${sc.optional?'<span class="st-optional">?</span>':''}<span class="st-colon">:</span> `;
     if(sc.t==='mixed'){
-      // Show all types in the mixed badge
       const typeLabels=sc.types.map(t=>t.charAt(0).toUpperCase()+t.slice(1)).join(' | ');
       h+=`<span class="st-badge st-b-mixed">⚡ ${esc(typeLabels)}</span>`;
     }else{
